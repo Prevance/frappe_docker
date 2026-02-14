@@ -29,6 +29,6 @@ venv
 # NodeJS
 node_modules
 
-# Spec Kit symlinks (devcontainer only)
+# Spec Kit directories (devcontainer only - copied from prevance_health app)
 .claude
 .specify

@@ -1,0 +1,9 @@
+# Prevance Health Development Environment
+# This workspace contains the frappe_docker devcontainer with prevance_health app
+
+## Spec Kit Commands Available
+Spec Kit slash commands are available via symlinks:
+- .claude/commands/ → prevance_health app Spec Kit commands
+- .specify/ → prevance_health app specifications and templates
+
+Use /speckit.* commands for specification-driven development.
