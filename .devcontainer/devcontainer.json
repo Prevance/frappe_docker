@@ -1,0 +1,105 @@
+{
+  "name": "Frappe Bench",
+  "dockerComposeFile": "./docker-compose.yml",
+  "service": "frappe",
+  "workspaceFolder": "/workspace/development",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "frappe",
+
+  // Dev Container Features - Tools available in the container
+  "features": {
+    // a) Git and GitHub CLI for full GitHub integration
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    },
+
+    // b) Docker-outside-of-Docker: Access host Docker Desktop from container
+    // This enables running docker commands, docker-compose, and integration tests
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "false"  // Use Docker Desktop, not install Docker inside container
+    }
+  },
+
+  // Forward ports for Frappe development
+  "forwardPorts": [8000, 9000, 6787],
+
+  // Environment variables passed from host to container
+  "remoteEnv": {
+    // Forward SSH agent socket for Git authentication
+    "SSH_AUTH_SOCK": "${localEnv:SSH_AUTH_SOCK}"
+  },
+
+  // Mount host directories into container
+  "mounts": [
+    // SSH keys for Git authentication
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/frappe/.ssh,type=bind,consistency=cached",
+
+    // GitHub CLI configuration (for gh commands)
+    "source=${localEnv:HOME}/.config/gh,target=/home/frappe/.config/gh,type=bind,consistency=cached",
+
+    // Git configuration (user.name, user.email, etc.)
+    "source=${localEnv:HOME}/.gitconfig,target=/home/frappe/.gitconfig,type=bind,consistency=cached"
+  ],
+
+  // VS Code / Cursor IDE customizations
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Python development
+        "ms-python.python",
+        "visualstudioexptteam.vscodeintellicode",
+
+        // GitHub integration - PRs, Actions, Issues
+        "GitHub.vscode-pull-request-github",
+        "GitHub.vscode-github-actions",
+
+        // Docker management
+        "ms-azuretools.vscode-docker",
+
+        // Database tools
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-mysql",
+
+        // Other utilities
+        "ms-vscode.live-server",
+        "grapecity.gc-excelviewer"
+      ],
+      "settings": {
+        "terminal.integrated.profiles.linux": {
+          "frappe bash": {
+            "path": "/bin/bash"
+          }
+        },
+        "terminal.integrated.defaultProfile.linux": "frappe bash",
+        "debug.node.autoAttach": "disabled",
+
+        // SQL Tools connection to MariaDB
+        "sqltools.connections": [
+          {
+            "mysqlOptions": {
+              "authProtocol": "default",
+              "enableSsl": "Disabled"
+            },
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "mariadb",
+            "port": 3306,
+            "driver": "MariaDB",
+            "name": "MariaDB",
+            "username": "root",
+            "password": "123",
+            "database": "mysql"
+          }
+        ]
+      }
+    }
+  },
+
+  // Post-create command: Setup permissions and configure tools
+  "postCreateCommand": "bash -c 'sudo chown frappe:frappe /home/frappe/.ssh -R 2>/dev/null || true; sudo chmod 700 /home/frappe/.ssh 2>/dev/null || true; sudo chmod 600 /home/frappe/.ssh/* 2>/dev/null || true; gh auth setup-git 2>/dev/null || true'"
+}
