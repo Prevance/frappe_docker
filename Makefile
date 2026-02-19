@@ -13,7 +13,7 @@ SITE          := frontend
 DB_ROOT_PW    := admin
 ADMIN_PW      := admin
 
-.PHONY: start stop restart new-site migrate reset-site help
+.PHONY: start stop restart new-site migrate reset-site test help
 
 ## Bring up all services (detached)
 start:
@@ -50,6 +50,10 @@ new-site:
 ## Run bench migrate on the site (use after pulling new app code)
 migrate:
 	docker exec $(CONTAINER) bench --site $(SITE) migrate
+
+## Run the full integration test suite with coverage (T067 — requires all specs on develop)
+test:
+	docker compose $(COMPOSE_FILES) exec backend bench --site $(SITE) run-tests --app prevance_health --coverage
 
 ## Wipe the site volume and start fresh (destructive — loses all data)
 reset-site:
