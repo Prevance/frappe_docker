@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  # configurator generates apps.txt via `ls -1 apps`. It must also have the
+  # prevance_health mount so that the generated apps.txt includes it — otherwise
+  # `bench new-site --install-app prevance_health` will fail for any developer.
+  configurator:
+    volumes:
+      - ./frappe-bench/apps/prevance_health:/home/frappe/frappe-bench/apps/prevance_health
+
+  backend:
+    volumes:
+      # Mount prevance_health from host frappe-bench into the container's bench.
+      # Container bench is at /home/frappe/frappe-bench (not /workspace).
+      - ./frappe-bench/apps/prevance_health:/home/frappe/frappe-bench/apps/prevance_health

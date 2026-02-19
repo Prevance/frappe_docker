@@ -1,0 +1,47 @@
+# Development override: bind-mount prevance_health into the containers
+# so that code changes (via Cursor or Cowork) are immediately reflected
+# without rebuilding the Docker image.
+#
+# WHY THIS FILE EXISTS
+# The main compose.yaml uses a baked Docker image (frappe/erpnext) that does NOT
+# include prevance_health as a live bind mount — only the `sites` volume is mounted.
+# This means code changes made in the DevContainer are invisible to the backend
+# service unless this override is in effect.
+#
+# HOW IT WORKS
+# Docker Compose auto-loads docker-compose.override.yml from the same directory
+# as the primary compose file. This file at the frappe_docker/ root is auto-loaded
+# every time `docker compose up` is run from here — no -f flags needed.
+#
+# WHY BOTH configurator AND backend ARE LISTED
+# The `configurator` service runs `ls -1 apps > sites/apps.txt` at startup.
+# If prevance_health is not mounted into the configurator, it will not appear in
+# apps.txt, and `bench new-site --install-app prevance_health` will fail.
+# Both services must mount the same path for site creation and migration to work.
+#
+# FIRST-TIME SETUP (after `docker compose up -d`)
+#   make new-site    # creates site, installs all apps, runs migrate
+#
+# AFTER CODE CHANGES
+#   make migrate     # runs bench migrate to pick up schema changes
+#
+# DISCOVERED
+# Spec 002 post-implementation: integration test `test_error_codes_integration.py`
+# was created on Feb 19 but was absent from the backend container (image dated Feb 17).
+# Root cause: no bind mount for app code → backend always used stale baked image.
+# See: .specify/retrospectives/spec-002-retrospective.md Amendment Candidate 5.
+# Configurator gap found during T067 diagnosis (Spec 002, session 5, 2026-02-19).
+
+services:
+  configurator:
+    volumes:
+      # Must mirror backend mount so that `ls -1 apps` in configurator sees prevance_health
+      # and writes it into sites/apps.txt before any bench new-site command runs.
+      - ./development/frappe-bench/apps/prevance_health:/home/frappe/frappe-bench/apps/prevance_health
+
+  backend:
+    volumes:
+      # Bind-mount prevance_health so the backend container always uses current code.
+      # Source: relative to this file (frappe_docker/ root)
+      # Destination: where bench expects to find the app inside the container
+      - ./development/frappe-bench/apps/prevance_health:/home/frappe/frappe-bench/apps/prevance_health

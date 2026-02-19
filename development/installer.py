@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# NOTE: This script is designed for the devcontainer / local-bench workflow only.
+# If you are using the Docker Compose workflow (compose.yaml), use the Makefile
+# targets instead:
+#
+#   make start     # bring up containers
+#   make new-site  # create site + install all apps
+#   make migrate   # run migrations after a code update
+#
+# The hardcoded db_root_password ("123") and db_host ("mariadb") below reflect
+# the devcontainer defaults and do NOT match the Docker Compose setup
+# (password: admin, host: db).
 import argparse
 import os
 import subprocess
