@@ -3,7 +3,7 @@
 # without rebuilding the Docker image.
 #
 # WHY THIS FILE EXISTS
-# The main compose.yaml uses a baked Docker image (frappe/erpnext) that does NOT
+# The main pwd.yml uses a baked Docker image (frappe/erpnext) that does NOT
 # include prevance_health as a live bind mount — only the `sites` volume is mounted.
 # This means code changes made in the DevContainer are invisible to the backend
 # service unless this override is in effect.
@@ -19,21 +19,37 @@
 # apps.txt, and `bench new-site --install-app prevance_health` will fail.
 # Both services must mount the same path for site creation and migration to work.
 #
-# FIRST-TIME SETUP (after `docker compose up -d`)
-#   make new-site    # creates site, installs all apps, runs migrate
+# WHY pip install IS IN THE CONFIGURATOR COMMAND
+# The bind mount makes the app files available, but `bench set-config` triggers
+# Frappe's app registry which tries to import all listed apps. Without pip-install,
+# this fails with ModuleNotFoundError: No module named 'prevance_health'.
+# The override prepends `pip install -q -e ...` to the configurator command so the
+# module is importable before bench runs.
+#
+# FIRST-TIME SETUP
+#   make reset-site   # wipe volumes, start stack, wait for create-site, install prevance_health
 #
 # AFTER CODE CHANGES
-#   make migrate     # runs bench migrate to pick up schema changes
+#   make migrate      # runs bench migrate to pick up schema changes
 #
 # DISCOVERED
 # Spec 002 post-implementation: integration test `test_error_codes_integration.py`
 # was created on Feb 19 but was absent from the backend container (image dated Feb 17).
 # Root cause: no bind mount for app code → backend always used stale baked image.
-# See: .specify/retrospectives/spec-002-retrospective.md Amendment Candidate 5.
-# Configurator gap found during T067 diagnosis (Spec 002, session 5, 2026-02-19).
+# Configurator pip-install gap found during T067 diagnosis (Spec 002, session 5, 2026-02-19).
+# See: .specify/retrospectives/spec-002-retrospective.md
 
 services:
   configurator:
+    command:
+      - >
+        printf 'frappe\nerpnext\n' > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
     volumes:
       # Must mirror backend mount so that `ls -1 apps` in configurator sees prevance_health
       # and writes it into sites/apps.txt before any bench new-site command runs.

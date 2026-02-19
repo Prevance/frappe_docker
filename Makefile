@@ -1,17 +1,20 @@
 # Prevance Health — frappe_docker development helpers
 #
 # Usage (first time on a new machine):
-#   make start       # bring up all containers
-#   make new-site    # create site + install apps (only needed once per volume)
+#   make reset-site   # clean rebuild: wipe volumes, start stack, install prevance_health
 #
-# After a `docker compose down -v` (volumes wiped) you need to re-run new-site.
-# A plain `docker compose down` (no -v) keeps the site intact — just `make start`.
+# After a plain `docker compose down` (no -v, volumes kept):
+#   make start        # bring services back up — site data is intact
+#
+# After pulling new app code:
+#   make migrate      # run bench migrate to pick up schema changes
+#
+# Run integration tests (T067):
+#   make test
 
-COMPOSE_FILES := -f compose.yaml -f docker-compose.override.yml
+COMPOSE_FILES := -f pwd.yml -f docker-compose.override.yml
 CONTAINER     := frappe_docker-backend-1
 SITE          := frontend
-DB_ROOT_PW    := admin
-ADMIN_PW      := admin
 
 .PHONY: start stop restart new-site migrate reset-site test help
 
@@ -26,39 +29,41 @@ stop:
 ## Stop and restart
 restart: stop start
 
-## Create the site and install all apps (run once after `make start` on a clean volume)
+## Install prevance_health into a running site (idempotent — safe to re-run)
 ##
-## Safe to re-run: bench new-site will fail gracefully if the site already exists,
-## install-app is idempotent, and migrate is always safe to re-run.
+## Use after `make start` on an already-created site to ensure prevance_health
+## is pip-installed and migrated. The pwd.yml create-site only installs erpnext;
+## this target adds prevance_health on top.
 new-site:
-	@echo ">>> Creating site '$(SITE)' ..."
-	docker exec $(CONTAINER) bench new-site $(SITE) \
-		--mariadb-root-password $(DB_ROOT_PW) \
-		--admin-password $(ADMIN_PW) \
-		--install-app frappe \
-		|| echo "(site already exists — skipping new-site)"
-	@echo ">>> Installing erpnext ..."
-	docker exec $(CONTAINER) bench --site $(SITE) install-app erpnext \
-		|| echo "(erpnext already installed — skipping)"
-	@echo ">>> Installing prevance_health ..."
+	@echo ">>> pip-installing prevance_health and coverage into backend ..."
+	docker exec $(CONTAINER) /home/frappe/frappe-bench/env/bin/pip install -q -e /home/frappe/frappe-bench/apps/prevance_health coverage
+	@echo ">>> Installing prevance_health on site '$(SITE)' ..."
 	docker exec $(CONTAINER) bench --site $(SITE) install-app prevance_health \
 		|| echo "(prevance_health already installed — skipping)"
 	@echo ">>> Running migrate ..."
 	docker exec $(CONTAINER) bench --site $(SITE) migrate
-	@echo ">>> Done. Site is ready at http://localhost:8080"
+	@echo ">>> Enabling tests ..."
+	docker exec $(CONTAINER) bench --site $(SITE) set-config allow_tests true
+	@echo ">>> Done. Site ready at http://localhost:8080"
 
 ## Run bench migrate on the site (use after pulling new app code)
 migrate:
 	docker exec $(CONTAINER) bench --site $(SITE) migrate
 
-## Run the full integration test suite with coverage (T067 — requires all specs on develop)
+## Run the full integration test suite with coverage (T067)
 test:
-	docker compose $(COMPOSE_FILES) exec backend bench --site $(SITE) run-tests --app prevance_health --coverage
+	docker compose $(COMPOSE_FILES) exec backend \
+		bench --site $(SITE) run-tests --app prevance_health --coverage
 
-## Wipe the site volume and start fresh (destructive — loses all data)
+## Wipe volumes and rebuild from scratch (destructive — loses all data).
+##
+## pwd.yml's create-site service auto-creates the site and installs frappe+erpnext.
+## After start we wait for create-site to finish, then add prevance_health.
 reset-site:
 	docker compose $(COMPOSE_FILES) down -v
 	$(MAKE) start
+	@echo ">>> Waiting for create-site to complete (frappe + erpnext install) ..."
+	docker wait frappe_docker-create-site-1
 	$(MAKE) new-site
 
 help:
