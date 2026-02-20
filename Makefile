@@ -51,11 +51,11 @@ new-site:
 	docker exec $(CONTAINER) /home/frappe/frappe-bench/env/bin/pip install -q -e /home/frappe/frappe-bench/apps/prevance_health argon2-cffi pytest coverage
 	@echo ">>> Installing prevance_health on site '$(SITE)' (skip if already installed) ..."
 	docker exec $(CONTAINER) bash -c \
-		"bench --site $(SITE) list-installed-apps | grep -q prevance_health \
+		"grep -q prevance_health /home/frappe/frappe-bench/sites/$(SITE)/apps.txt 2>/dev/null \
 		 || bench --site $(SITE) install-app prevance_health \
 		 || (echo 'ERROR: bench install-app prevance_health failed'; exit 1)"
 	@echo ">>> Verifying prevance_health is listed in installed apps ..."
-	docker exec $(CONTAINER) bench --site $(SITE) list-installed-apps | grep -q prevance_health \
+	docker exec $(CONTAINER) grep -q prevance_health /home/frappe/frappe-bench/sites/$(SITE)/apps.txt \
 		|| (echo "ERROR: prevance_health not listed after install — aborting"; exit 1)
 	@echo ">>> Running migrate ..."
 	docker exec $(CONTAINER) bench --site $(SITE) migrate
