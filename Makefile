@@ -62,6 +62,8 @@ new-site:
 	docker exec $(CONTAINER) bench --site $(SITE) migrate
 	@echo ">>> Enabling tests ..."
 	docker exec $(CONTAINER) bench --site $(SITE) set-config allow_tests true
+	@echo ">>> Restarting workers so they pick up the newly installed prevance_health module ..."
+	docker compose $(COMPOSE_FILES) restart backend queue-short queue-long scheduler
 	@echo ">>> Done. Site ready at http://localhost:8080"
 
 ## Run bench migrate on the site (use after pulling new app code)
