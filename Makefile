@@ -1,16 +1,24 @@
 # Prevance Health — frappe_docker development helpers
 #
-# Usage (first time on a new machine):
-#   make reset-site   # clean rebuild: wipe volumes, start stack, install prevance_health
+# ─── FIRST TIME ON A NEW MACHINE ────────────────────────────────────────────
+#   cp example.env .env                  # REQUIRED — see example.env header
+#   make reset-site                      # wipe volumes, start stack, install
 #
-# After a plain `docker compose down` (no -v, volumes kept):
+# ─── AFTER A PLAIN `docker compose down` (volumes kept) ─────────────────────
 #   make start        # bring services back up — site data is intact
 #
-# After pulling new app code:
+# ─── AFTER PULLING NEW APP CODE ─────────────────────────────────────────────
 #   make migrate      # run bench migrate to pick up schema changes
 #
-# Run integration tests (T067):
+# ─── POST-CONTAINER-RECREATION (packages lost on backend image rebuild) ──────
+#   make new-site     # re-installs: prevance_health, argon2-cffi, pytest, coverage
+#
+# ─── INTEGRATION TESTS ──────────────────────────────────────────────────────
 #   make test
+#
+# ─── CANONICAL DEV START COMMAND (for reference) ────────────────────────────
+#   ERPNEXT_VERSION=v16.5.0 docker compose -f pwd.yml -f docker-compose.override.yml up -d
+#   (make start runs this automatically via COMPOSE_FILES)
 
 COMPOSE_FILES := -f pwd.yml -f docker-compose.override.yml
 CONTAINER     := frappe_docker-backend-1
@@ -35,11 +43,20 @@ restart: stop start
 ## is pip-installed and migrated. The pwd.yml create-site only installs erpnext;
 ## this target adds prevance_health on top.
 new-site:
-	@echo ">>> pip-installing prevance_health and coverage into backend ..."
-	docker exec $(CONTAINER) /home/frappe/frappe-bench/env/bin/pip install -q -e /home/frappe/frappe-bench/apps/prevance_health coverage
-	@echo ">>> Installing prevance_health on site '$(SITE)' ..."
-	docker exec $(CONTAINER) bench --site $(SITE) install-app prevance_health \
-		|| echo "(prevance_health already installed — skipping)"
+	@echo ">>> Registering prevance_health in global apps registry ..."
+	docker exec $(CONTAINER) bash -c \
+		"grep -q prevance_health /home/frappe/frappe-bench/sites/apps.txt \
+		 || echo prevance_health >> /home/frappe/frappe-bench/sites/apps.txt"
+	@echo ">>> pip-installing prevance_health, argon2-cffi, pytest, and coverage into backend ..."
+	docker exec $(CONTAINER) /home/frappe/frappe-bench/env/bin/pip install -q -e /home/frappe/frappe-bench/apps/prevance_health argon2-cffi pytest coverage
+	@echo ">>> Installing prevance_health on site '$(SITE)' (skip if already installed) ..."
+	docker exec $(CONTAINER) bash -c \
+		"bench --site $(SITE) list-installed-apps | grep -q prevance_health \
+		 || bench --site $(SITE) install-app prevance_health \
+		 || (echo 'ERROR: bench install-app prevance_health failed'; exit 1)"
+	@echo ">>> Verifying prevance_health is listed in installed apps ..."
+	docker exec $(CONTAINER) bench --site $(SITE) list-installed-apps | grep -q prevance_health \
+		|| (echo "ERROR: prevance_health not listed after install — aborting"; exit 1)
 	@echo ">>> Running migrate ..."
 	docker exec $(CONTAINER) bench --site $(SITE) migrate
 	@echo ">>> Enabling tests ..."
